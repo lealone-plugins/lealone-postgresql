@@ -59,14 +59,19 @@ public class PgServer extends AsyncServer<PgServerConnection> {
         // 创建默认的 postgres 数据库
         String sql = "CREATE DATABASE IF NOT EXISTS postgres" //
                 + " PARAMETERS(DEFAULT_SQL_ENGINE='" + PgPlugin.NAME + "')";
-        LealoneDatabase.getInstance().getSystemSession().executeUpdateLocal(sql);
+        Database db = LealoneDatabase.getInstance();
+        try (ServerSession session = db.createSession(db.getSystemUser())) {
+            session.executeUpdateLocal(sql);
+        }
 
         // 创建默认的 postgres 用户
         sql = "CREATE USER IF NOT EXISTS postgres PASSWORD 'postgres' ADMIN";
-        Database db = LealoneDatabase.getInstance().findDatabase("postgres");
+        db = LealoneDatabase.getInstance().findDatabase("postgres");
         if (!db.isInitialized())
             db.init();
-        db.getSystemSession().executeUpdateLocal(sql);
+        try (ServerSession session = db.createSession(db.getSystemUser())) {
+            session.executeUpdateLocal(sql);
+        }
 
         // 注册内置函数工厂
         PgFunctionFactory.register();
