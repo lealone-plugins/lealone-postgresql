@@ -38,7 +38,7 @@ public class PgServerConnection extends AsyncServerConnection {
     private PacketHandler packetHandler;
 
     protected PgServerConnection(PgServer server, WritableChannel writableChannel, Scheduler scheduler) {
-        super(writableChannel, true);
+        super(writableChannel);
         this.server = server;
         this.scheduler = scheduler;
         // 需要先认证，然后再切换到CommandPacketHandler
