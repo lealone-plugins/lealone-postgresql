@@ -61,9 +61,11 @@ Exit with Ctrl+C
 create plugin postgresql
   implement by 'com.lealone.plugins.postgresql.PgPlugin' 
   class path 'E:\lealone\lealone-plugins\postgresql\target\lealone-postgresql-plugin-6.0.0.jar'
-  --端口号默认就是5432，如果被其他进程占用了可以改成别的
-  parameters (port=5432);
- 
+  parameters (
+    port=5432,        --端口号默认就是5432，如果被其他进程占用了可以改成别的
+    auto_start=false  --如果 auto_start 为 true，执行 create plugin 后或启动数据库时都会自动启动插件
+  );
+
 start plugin postgresql;
 ```
 
