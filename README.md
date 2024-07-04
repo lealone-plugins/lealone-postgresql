@@ -18,6 +18,8 @@ Lealone 高度兼容 PostgreSQL 的协议和 SQL 语法，可以使用 PostgreSQ
 
 假设 jar 包的绝对路径是 `E:\lealone\lealone-plugins\postgresql\target\lealone-postgresql-plugin-6.0.0.jar`
 
+也可以直接下载插件 [lealone-postgresql-plugin-6.0.0.jar](https://github.com/lealone-plugins/.github/releases/download/lealone-plugins-6.0.0/lealone-postgresql-plugin-6.0.0.jar)
+
 
 ## 下载 Lealone
 
