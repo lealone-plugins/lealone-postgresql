@@ -7,30 +7,16 @@ package com.lealone.plugins.postgresql.server.io;
 
 import com.lealone.net.NetBuffer;
 
-public class NetBufferInput implements AutoCloseable {
+public class NetBufferInput {
 
-    protected final NetBuffer buffer;
-    protected final int size;
-    protected int pos;
+    private NetBuffer buffer;
 
-    public NetBufferInput(NetBuffer buffer) {
+    public void reset(NetBuffer buffer) {
         this.buffer = buffer;
-        size = buffer.length();
-    }
-
-    public int available() {
-        return size - pos;
     }
 
     public int read() {
-        return buffer.getUnsignedByte(pos++);
-    }
-
-    @Override
-    public void close() {
-        // buffer中只有一个包时回收才安全
-        if (buffer.isOnlyOnePacket())
-            buffer.recycle();
+        return buffer.getUnsignedByte();
     }
 
     public byte readByte() {
@@ -53,11 +39,7 @@ public class NetBufferInput implements AutoCloseable {
     }
 
     public void readFully(byte b[]) {
-        readFully(b, 0, b.length);
-    }
-
-    public final void readFully(byte b[], int off, int len) {
-        for (int i = off; i < len; i++)
+        for (int i = 0, len = b.length; i < len; i++)
             b[i] = readByte();
     }
 }

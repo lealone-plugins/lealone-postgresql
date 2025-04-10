@@ -9,8 +9,8 @@ import java.util.Map;
 
 import com.lealone.common.logging.Logger;
 import com.lealone.common.logging.LoggerFactory;
-import com.lealone.db.PluginBase;
-import com.lealone.db.PluginManager;
+import com.lealone.db.plugin.PluginBase;
+import com.lealone.db.plugin.PluginManager;
 import com.lealone.plugins.postgresql.server.PgServerEngine;
 import com.lealone.plugins.postgresql.sql.PgSQLEngine;
 import com.lealone.server.ProtocolServer;

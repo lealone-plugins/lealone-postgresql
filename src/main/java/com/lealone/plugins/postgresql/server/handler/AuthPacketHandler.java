@@ -33,6 +33,7 @@ public class AuthPacketHandler extends PacketHandler {
                 server.trace(" key: " + readInt());
             } else if (version == 80877103) {
                 server.trace("SSLRequest");
+                out.startMessage();
                 out.write('N');
                 out.flush();
             } else {

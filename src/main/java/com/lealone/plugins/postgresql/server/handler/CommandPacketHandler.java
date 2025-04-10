@@ -14,8 +14,9 @@ import com.lealone.common.util.CaseInsensitiveMap;
 import com.lealone.common.util.DataUtils;
 import com.lealone.common.util.ScriptReader;
 import com.lealone.common.util.StringUtils;
-import com.lealone.db.CommandParameter;
 import com.lealone.db.Database;
+import com.lealone.db.async.AsyncTask;
+import com.lealone.db.command.CommandParameter;
 import com.lealone.db.result.Result;
 import com.lealone.db.schema.Schema;
 import com.lealone.db.table.Column;
@@ -57,8 +58,19 @@ public class CommandPacketHandler extends PacketHandler {
             execute();
             break;
         case 'S':
-            server.trace("Sync");
-            sendReadyForQuery();
+            // postgresql执行一条sql要分成5个包: Parse Bind Describe Execute Sync
+            // 执行到Execute这一步时会异步提交sql，此时不能继续处理Sync包，否则客户端会提前收到Sync的响应，但sql的结果还看不到
+            si.submitTask(new AsyncTask() {
+                @Override
+                public void run() {
+                    server.trace("Sync");
+                    try {
+                        sendReadyForQuery();
+                    } catch (IOException e) {
+                        server.trace("Sync IOException: " + e.getMessage());
+                    }
+                }
+            });
             break;
         case 'Q':
             query();
@@ -183,7 +195,7 @@ public class CommandPacketHandler extends PacketHandler {
             sendErrorResponse("Portal not found: " + name);
             return;
         }
-        int maxRows = readShort();
+        int maxRows = readInt();
         Prepared prepared = p.prep;
         PreparedSQLStatement prep = prepared.prep;
         server.trace(prepared.sql);
@@ -243,7 +255,6 @@ public class CommandPacketHandler extends PacketHandler {
         if (stmt.isQuery()) {
             yieldable = stmt.createYieldableQuery(maxRows, false, ar -> {
                 if (ar.isSucceeded()) {
-                    batch = true;
                     try {
                         Result result = ar.getResult();
                         if (isQuery)
@@ -256,9 +267,6 @@ public class CommandPacketHandler extends PacketHandler {
                             sendReadyForQuery();
                     } catch (Exception e) {
                         sendErrorResponse(e);
-                    } finally {
-                        batch = false;
-                        flush();
                     }
                 } else {
                     sendErrorResponse(ar.getCause());

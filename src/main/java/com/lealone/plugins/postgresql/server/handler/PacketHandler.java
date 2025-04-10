@@ -20,41 +20,37 @@ import com.lealone.plugins.postgresql.server.PgServer;
 import com.lealone.plugins.postgresql.server.PgServerConnection;
 import com.lealone.plugins.postgresql.server.io.NetBufferInput;
 import com.lealone.plugins.postgresql.server.io.NetBufferOutput;
-import com.lealone.server.scheduler.SessionInfo;
+import com.lealone.server.scheduler.ServerSessionInfo;
 
 public abstract class PacketHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(PacketHandler.class);
-    private static final int BUFFER_SIZE = 4 * 1024;
 
     protected final PgServer server;
     protected final PgServerConnection conn;
 
     protected ServerSession session;
-    protected SessionInfo si;
+    protected ServerSessionInfo si;
 
     protected NetBufferInput in;
     protected NetBufferOutput out;
 
     protected String clientEncoding = Utils.getProperty("pgClientEncoding", "UTF-8");
-    protected boolean batch;
     protected int startPos;
 
     protected PacketHandler(PgServer server, PgServerConnection conn) {
         this.server = server;
         this.conn = conn;
+        out = conn.getOut();
+        in = new NetBufferInput();
     }
 
     public abstract void handle(int x) throws IOException;
 
     public void handle(NetBuffer buffer, int x) {
-        in = new NetBufferInput(buffer);
-        out = new NetBufferOutput(conn.getWritableChannel(), BUFFER_SIZE,
-                conn.getScheduler().getDataBufferFactory());
+        in.reset(buffer);
         try {
             handle(x);
-            in.close();
-            // out先不关闭，因为sql会异步执行
         } catch (Exception e) {
             logger.error("handle packet exception", e);
             try {
@@ -65,7 +61,7 @@ public abstract class PacketHandler {
         }
     }
 
-    public void setSession(ServerSession session, SessionInfo si) {
+    public void setSession(ServerSession session, ServerSessionInfo si) {
         this.session = session;
         this.si = si;
     }
@@ -178,6 +174,7 @@ public abstract class PacketHandler {
     }
 
     protected void startMessage(int newMessageType) {
+        out.startMessage();
         out.write(newMessageType);
         startPos = out.length();
         out.writeInt(0); // 占位
@@ -185,12 +182,6 @@ public abstract class PacketHandler {
 
     protected void sendMessage() {
         out.setInt(startPos, out.length() - startPos); // 回填
-        if (!batch) {
-            out.flush();
-        }
-    }
-
-    protected void flush() {
         out.flush();
     }
 }

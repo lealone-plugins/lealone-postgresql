@@ -9,10 +9,9 @@ import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import com.lealone.common.exceptions.DbException;
 import com.lealone.db.ConnectionInfo;
 import com.lealone.db.Constants;
-import com.lealone.db.PluginManager;
+import com.lealone.db.plugin.PluginManager;
 import com.lealone.db.scheduler.Scheduler;
 import com.lealone.db.session.ServerSession;
 import com.lealone.net.NetBuffer;
@@ -21,28 +20,33 @@ import com.lealone.plugins.postgresql.PgPlugin;
 import com.lealone.plugins.postgresql.server.handler.AuthPacketHandler;
 import com.lealone.plugins.postgresql.server.handler.CommandPacketHandler;
 import com.lealone.plugins.postgresql.server.handler.PacketHandler;
+import com.lealone.plugins.postgresql.server.io.NetBufferOutput;
 import com.lealone.plugins.postgresql.sql.PgAlias;
 import com.lealone.server.AsyncServerConnection;
-import com.lealone.server.scheduler.SessionInfo;
+import com.lealone.server.scheduler.ServerSessionInfo;
 import com.lealone.sql.SQLEngine;
 
 public class PgServerConnection extends AsyncServerConnection {
 
     private final PgServer server;
-    private final Scheduler scheduler;
     private ServerSession session;
-    private SessionInfo si;
     private boolean stop;
     private boolean initDone;
     private int processId;
     private PacketHandler packetHandler;
 
+    private final NetBufferOutput out;
+
     protected PgServerConnection(PgServer server, WritableChannel writableChannel, Scheduler scheduler) {
-        super(writableChannel);
+        super(writableChannel, scheduler);
         this.server = server;
-        this.scheduler = scheduler;
+        out = new NetBufferOutput(getWritableChannel(), scheduler.getOutputBuffer());
         // 需要先认证，然后再切换到CommandPacketHandler
         packetHandler = new AuthPacketHandler(server, this);
+    }
+
+    public NetBufferOutput getOut() {
+        return out;
     }
 
     public void setProcessId(int id) {
@@ -53,12 +57,8 @@ public class PgServerConnection extends AsyncServerConnection {
         return processId;
     }
 
-    public Scheduler getScheduler() {
-        return scheduler;
-    }
-
     @Override
-    public void closeSession(SessionInfo si) {
+    public void closeSession(ServerSessionInfo si) {
     }
 
     @Override
@@ -86,7 +86,7 @@ public class PgServerConnection extends AsyncServerConnection {
         ConnectionInfo ci = new ConnectionInfo(url, info);
         ci.setRemote(false);
         session = (ServerSession) ci.createSession();
-        si = new SessionInfo(scheduler, this, session, -1, -1);
+        ServerSessionInfo si = new ServerSessionInfo(scheduler, this, session, -1, -1);
         scheduler.addSessionInfo(si);
         session.setSQLEngine(PluginManager.getPlugin(SQLEngine.class, PgPlugin.NAME));
         session.setVersion(PgAlias.getVersion());
@@ -114,56 +114,45 @@ public class PgServerConnection extends AsyncServerConnection {
         server.removeConnection(this);
     }
 
-    private final ByteBuffer packetLengthByteBufferInitDone = ByteBuffer.allocateDirect(5);
-
     @Override
-    public ByteBuffer getPacketLengthByteBuffer() {
+    public int getPacketLengthByteCount() {
         if (initDone)
-            return packetLengthByteBufferInitDone;
+            return 5;
         else
-            return packetLengthByteBuffer;
+            return 4;
     }
 
     @Override
-    public int getPacketLength() {
+    public int getPacketLength(ByteBuffer buffer) {
         int len;
         if (initDone) {
-            packetLengthByteBufferInitDone.get();
-            len = packetLengthByteBufferInitDone.getInt();
-            packetLengthByteBufferInitDone.flip();
+            len = buffer.getInt(buffer.position() + 1);
         } else {
-            len = packetLengthByteBuffer.getInt();
-            packetLengthByteBuffer.flip();
+            len = buffer.getInt();
         }
         return len - 4;
     }
 
     @Override
-    public void handle(NetBuffer buffer) {
-        // postgresql执行一条sql要分成5个包: Parse Bind Describe Execute Sync
-        // 执行到Execute这一步时会异步提交sql，此时不能继续处理Sync包，否则客户端会提前收到Sync的响应，但sql的结果还看不到
-        if (si == null)
-            handlePacket(buffer);
-        else
-            si.submitTask(new PgTask(this, buffer));
-    }
-
-    void handlePacket(NetBuffer buffer) {
-        if (!buffer.isOnlyOnePacket())
-            DbException.throwInternalError("NetBuffer must be OnlyOnePacket");
+    public void handle(NetBuffer buffer, boolean autoRecycle) {
         if (stop)
             return;
-        int x;
-        if (initDone) {
-            x = packetLengthByteBufferInitDone.get();
-            packetLengthByteBufferInitDone.clear();
-            if (x < 0) {
-                stop = true;
-                return;
+        try {
+            int x;
+            if (initDone) {
+                x = buffer.getUnsignedByte();
+                buffer.position(buffer.position() + 4);
+                if (x < 0) {
+                    close();
+                    return;
+                }
+            } else {
+                x = 0;
             }
-        } else {
-            x = 0;
+            packetHandler.handle(buffer, x);
+        } finally {
+            if (autoRecycle)
+                buffer.recycle();
         }
-        packetHandler.handle(buffer, x);
     }
 }
