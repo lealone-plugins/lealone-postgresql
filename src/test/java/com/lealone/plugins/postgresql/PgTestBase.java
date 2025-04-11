@@ -5,7 +5,6 @@
  */
 package com.lealone.plugins.postgresql;
 
-import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -24,19 +23,20 @@ import com.lealone.test.sql.SqlTestBase;
 public class PgTestBase extends SqlTestBase {
 
     public final static int TEST_PORT = 9510;
+    public final static String NAME = PgPlugin.NAME;
 
     @BeforeClass
     public static void createPgPlugin() throws Exception {
         TestBase test = new TestBase();
         Connection conn = test.getConnection(LealoneDatabase.NAME);
         Statement stmt = conn.createStatement();
-        File classPath = new File("target/classes");
-        String sql = "create plugin if not exists " + PgPlugin.NAME //
+        // File classPath = new File("target/classes");
+        String sql = "create plugin if not exists " + NAME //
                 + " implement by '" + PgPlugin.class.getName() + "'" //
-                + " class path '" + classPath.getCanonicalPath() + "'" //
+                // + " class path '" + classPath.getCanonicalPath() + "'" //
                 + " parameters(port=" + TEST_PORT + ", host='127.0.0.1')";
         stmt.executeUpdate(sql);
-        stmt.executeUpdate("start plugin " + PgPlugin.NAME);
+        stmt.executeUpdate("start plugin " + NAME);
         stmt.close();
         conn.close();
     }
@@ -46,8 +46,8 @@ public class PgTestBase extends SqlTestBase {
         TestBase test = new TestBase();
         Connection conn = test.getConnection(LealoneDatabase.NAME);
         Statement stmt = conn.createStatement();
-        stmt.executeUpdate("stop plugin " + PgPlugin.NAME);
-        stmt.executeUpdate("drop plugin " + PgPlugin.NAME);
+        stmt.executeUpdate("stop plugin " + NAME);
+        stmt.executeUpdate("drop plugin " + NAME);
         stmt.close();
         conn.close();
     }
